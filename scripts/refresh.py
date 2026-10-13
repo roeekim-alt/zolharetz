@@ -18,7 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 DATA.mkdir(exist_ok=True)
 CITY_FILTER = [x.strip() for x in os.getenv("ZOL_CITIES", "כפר סבא,הוד השרון,רעננה").split(",") if x.strip()]
-CHAINS = [x.strip() for x in os.getenv("ZOL_CHAINS", "shufersal,rami-levy,super-yuda,tiv-taam,victory,carrefour").split(",") if x.strip()]
+CHAINS = [x.strip() for x in os.getenv("ZOL_CHAINS", "shufersal,rami-levy,super-yuda,tiv-taam,victory,yochananof,osher-ad,carrefour,city-market").split(",") if x.strip()]
 MAX_STORES_PER_CHAIN = int(os.getenv("ZOL_MAX_STORES_PER_CHAIN", "12"))
 MAX_EXPORT_ROWS = int(os.getenv("ZOL_MAX_EXPORT_ROWS", "150000"))
 now = dt.datetime.now(dt.timezone.utc).isoformat()
@@ -48,11 +48,11 @@ for chain in CHAINS:
     try:
         response = ilp.get_stores(chain)
         candidates = entries(response, "stores", "items")
-        selected = [s for s in candidates if any(c in text(value(s, "city", "city_name", "cityName")) for c in CITY_FILTER)]
+        selected = [s for s in candidates if any(c in text(value(s, "city", "city_name", "cityName", "store_city", "storeCity")) for c in CITY_FILTER)]
         if not selected:
             status["failures"].append(chain + ": no branches matched configured cities")
         for s in selected[:MAX_STORES_PER_CHAIN]:
-            sid = text(value(s, "store_id", "storeId", "id"))
+            sid = text(value(s, "store_id", "storeId", "id", "store_code", "storeCode"))
             if not sid:
                 continue
             key = chain + ":" + sid
@@ -75,7 +75,7 @@ for chain in CHAINS:
                 if not rows:
                     status["failures"].append(key + ": no valid product prices")
                     continue
-                db.execute("INSERT OR REPLACE INTO stores VALUES(?,?,?,?,?)", (key, chain, text(value(s,"store_name","storeName","name")), text(value(s,"city","city_name","cityName")), text(value(s,"address","street"))))
+                db.execute("INSERT OR REPLACE INTO stores VALUES(?,?,?,?,?)", (key, chain, text(value(s,"store_name","storeName","name")), text(value(s,"city","city_name","cityName","store_city","storeCity")), text(value(s,"address","street"))))
                 db.executemany("INSERT OR REPLACE INTO prices VALUES(?,?,?,?,?)", rows)
                 db.commit()
                 status["chains"][chain]["stores"] += 1
